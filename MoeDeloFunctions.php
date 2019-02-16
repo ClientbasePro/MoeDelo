@@ -24,13 +24,20 @@ function GetMoeDeloData($url, $params) {
   return false;
 }
 
- 
+
+  // функция возвращает массив с информацией обо всех договорах
+function GetMoeDeloAccountsData() {
+  $tmp = GetMoeDeloData('/kontragents/api/v1/kontragent', array('pageSize'=>99999));
+  return $tmp['ResourceList'];
+}
+
+
   // функция возвращает массив с информацией о контрагенте по ИНН или названию
 function GetMoeDeloAccountData($INN='', $name='') {
   $INN = preg_replace('/\D/i','',$INN);
   if (!$INN && !$name) return false;
   if ($INN) $params['inn'] = $INN;
-  if ($name) $params['name'] = $name;
+  if ($name) $params['name'] = $name;  
   $tmp = GetMoeDeloData('/kontragents/api/v1/kontragent', $params);
   return $tmp['ResourceList'];
 }
@@ -85,6 +92,170 @@ function UpdateMoeDeloAccount($mdId='', $name='', $inn='', $ogrn='', $LegalAddre
   }
   return false;
 }
+
+
+  // функция возвращает массив с информацией обо всех договорах
+function GetMoeDeloContractsData() {
+  $tmp = GetMoeDeloData('/contract/api/v1/contract', array('pageSize'=>99999));
+  return $tmp['ResourceList'];
+}
+
+
+  // функция возвращает массив с информацией о договорах с условиями поиска (array)$search (field=>value)
+  // $data - массив договоров (для случаев, когда нужно запускать эту функцию несколько раз и )
+function GetMoeDeloContractData($search='', $data='') {
+  if (!$search) return false;
+  $tmp = '';
+  $data = ($data && is_array($data)) ? $data : GetMoeDeloContractsData();
+  foreach ($data as $contract) {
+	$c = 0;
+    foreach ($search as $key=>$value) { if ($value!=$contract[$key]) {$c=0;break;} else $c = 1; }
+	if ($c) $tmp[] = $contract;
+  }
+  return $tmp;
+}
+
+
+  // функция создаёт договор, возвращает id созданного договора
+function CreateMoeDeloContract($number='', $date='', $accountMDId='', $summ=0) {
+  if (!$number || !$accountMDId) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+    // сначала проверяем наличие этого договора в МД (тот же номер и контрагент)
+  $tmp = GetMoeDeloContractData(array('Number'=>$number, 'KontragentId'=>$accountMDId));  
+  if ($tmp[0]['Id']) return $tmp[0]['Id'];
+    // данные для создания договора
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['Sum'] = intval($summ);
+  $data['Status'] = 2;
+  $data['Direction'] = 1;
+    // запрос на создание
+  $curl = curl_init(MOEDELO_URL.'/contract/api/v1/contract');
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return $answer['Id']; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+  // функция обновляет договор $mdId
+function UpdateMoeDeloContract($mdId='', $number='', $date='', $accountMDId='', $summ=0) {
+  if (!$mdId || !$number || !$accountMDId) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+    // данные для обновления договора
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['Sum'] = intval($summ);
+  $data['Status'] = 2;
+  $data['Direction'] = 1;
+    // запрос на обновление
+  $curl = curl_init(MOEDELO_URL.'/contract/api/v1/contract/'.$mdId);
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return true; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+  // функция возвращает массив с информацией обо всех актах
+function GetMoeDeloActsData() {
+  $tmp = GetMoeDeloData('/accounting/api/v1/sales/act', array('pageSize'=>99999));
+  return $tmp['ResourceList'];
+}
+
+
+  // функция возвращает массив с информацией об актах с условиями поиска (array)$search (field=>value)
+  // условия поиска - https://restapi.moedelo.org/s/?url=/docs#!/%D0%9F%D1%80%D0%BE%D0%B4%D0%B0%D0%B6%D0%B8_-_%D0%90%D0%BA%D1%82%D1%8B/SalesAct_Get
+function GetMoeDeloActData($search) {
+  $tmp = GetMoeDeloData('/accounting/api/v1/sales/act', $search);
+  return $tmp['ResourceList'];
+}
+
+
+  // функция создаёт акт, возвращает id созданного акта
+  // формат массива позиций акта - https://restapi.moedelo.org/s/?url=/docs#!/%D0%9F%D1%80%D0%BE%D0%B4%D0%B0%D0%B6%D0%B8_-_%D0%90%D0%BA%D1%82%D1%8B/SalesAct_Put
+function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $products='') {
+  if (!$number || !$accountMDId || !$products || !is_array($products)) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+    // сначала проверяем наличие этого акта в МД (тот же номер и контрагент)
+  $tmp = GetMoeDeloActData(array('number'=>$number, 'kontragentId'=>$accountMDId));  
+  if ($tmp[0]['Id']) return $tmp[0]['Id'];
+    // данные для создания акта
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['Sum'] = intval($summ);
+  $data['ProjectId'] = $contractMDId;
+  $data['Items'] = $products;
+    // запрос на создание
+  $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act');
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return $answer['Id']; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+  // функция обновляет акт $mdId
+function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $products='') {
+  if (!$mdId || !$number || !$accountMDId) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+    // данные для обновления акта
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['Sum'] = intval($summ);
+  $data['ProjectId'] = $contractMDId;
+  $data['Items'] = $products;
+    // запрос на обновление
+  $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act/'.$mdId);
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return true; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+
+
 
 
 ?>
