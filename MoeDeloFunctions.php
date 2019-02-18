@@ -194,8 +194,8 @@ function GetMoeDeloActData($search) {
 
   // функция создаёт акт, возвращает id созданного акта
   // формат массива позиций акта - https://restapi.moedelo.org/s/?url=/docs#!/%D0%9F%D1%80%D0%BE%D0%B4%D0%B0%D0%B6%D0%B8_-_%D0%90%D0%BA%D1%82%D1%8B/SalesAct_Put
-function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $products='') {
-  if (!$number || !$accountMDId || !$products || !is_array($products)) return false;
+function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='') {
+  if (!$number || !$accountMDId || !$products || !in_array($original,array('','Да','Нет','Скан')) || !is_array($products)) return false;
   if (!$date) $date = date('Y-m-d');
   $date = date(DATE_ATOM, strtotime($date));
     // сначала проверяем наличие этого акта в МД (тот же номер и контрагент)
@@ -207,6 +207,7 @@ function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='
   $data['DocDate'] = $date;
   $data['Sum'] = intval($summ);
   $data['ProjectId'] = $contractMDId;
+  $data['OnHands'] = $original;
   $data['Items'] = $products;
     // запрос на создание
   $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act');
@@ -226,8 +227,8 @@ function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='
 
 
   // функция обновляет акт $mdId
-function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $products='') {
-  if (!$mdId || !$number || !$accountMDId) return false;
+function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='') {
+  if (!$mdId || !$number || !$accountMDId || !in_array($original,array('','Да','Нет','Скан'))) return false;
   if (!$date) $date = date('Y-m-d');
   $date = date(DATE_ATOM, strtotime($date));
     // данные для обновления акта
@@ -236,6 +237,7 @@ function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $cont
   $data['DocDate'] = $date;
   $data['Sum'] = intval($summ);
   $data['ProjectId'] = $contractMDId;
+  $data['OnHands'] = $original;
   $data['Items'] = $products;
     // запрос на обновление
   $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act/'.$mdId);
