@@ -228,7 +228,7 @@ function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='
 
   // функция обновляет акт $mdId
 function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='') {
-  if (!$mdId || !$number || !$accountMDId || !in_array($original,array('','Да','Нет','Скан'))) return false;
+  if (!$mdId || !$number || !$accountMDId || !in_array($original,array('','Да','Нет','Скан')) || !is_array($products)) return false;
   if (!$date) $date = date('Y-m-d');
   $date = date(DATE_ATOM, strtotime($date));
     // данные для обновления акта
@@ -254,6 +254,99 @@ function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $cont
   curl_close($curl);
   return false;
 }
+
+
+  // функция возвращает массив с информацией обо всех счетах
+function GetMoeDeloInvoicesData() {
+  $tmp = GetMoeDeloData('/accounting/api/v1/sales/bill', array('pageSize'=>99999));
+  return $tmp['ResourceList'];
+}
+
+
+  // функция возвращает массив с информацией о счетах с условиями поиска (array)$search (field=>value)
+  // $data - массив счетов (для случаев, когда нужно запускать эту функцию несколько раз и нет нужды для каждого вызова заново запрашивать массив счетов)
+function GetMoeDeloInvoiceData($search='', $data='') {
+  if (!$search) return false;
+  $tmp = '';
+  $data = ($data && is_array($data)) ? $data : GetMoeDeloInvoicesData();
+  foreach ($data as $invoice) {
+	$c = 0;
+    foreach ($search as $key=>$value) { if ($value!=$invoice[$key]) {$c=0;break;} else $c = 1; }
+	if ($c) $tmp[] = $invoice;
+  }
+  return $tmp;
+}
+
+
+  // функция создаёт счёт, возвращает id созданного счёта
+  // формат массива позиций счёта - https://restapi.moedelo.org/s/?url=/docs#!/%D0%9F%D1%80%D0%BE%D0%B4%D0%B0%D0%B6%D0%B8_-_%D0%A1%D1%87%D0%B5%D1%82%D0%B0/SalesBill_Post
+function CreateMoeDeloInvoice($number='', $date='', $accountMDId='', $contractMDId='', $status=4, $isCovered=false, $products='') {
+  if (!$number || !$accountMDId || !$products || !in_array($status,array(4,5,6)) || !is_array($products)) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+  $isCovered = (bool)$isCovered;
+    // сначала проверяем наличие этого счёта в МД (тот же номер и контрагент)
+  $tmp = GetMoeDeloInvoiceData(array('Number'=>$number, 'KontragentId'=>$accountMDId));  
+  if ($tmp[0]['Id']) return $tmp[0]['Id'];
+    // данные для создания акта
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['ProjectId'] = $contractMDId; 
+  $data['Type'] = 1;
+  $data['Status'] = $status;
+  $data['IsCovered '] = $isCovered;
+  $data['Items'] = $products;
+    // запрос на создание
+  $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/bill');
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return $answer['Id']; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+  // функция обновляет счёт $mdId
+function UpdateMoeDeloInvoice($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $status=4, $isCovered=false, $products='') {
+  if (!$mdId || !$number || !$accountMDId || !in_array($status,array(4,5,6)) || !is_array($products)) return false;
+  if (!$date) $date = date('Y-m-d');
+  $date = date(DATE_ATOM, strtotime($date));
+    // данные для обновления акта
+  $data['Number'] = $number;
+  $data['KontragentId'] = $accountMDId;
+  $data['DocDate'] = $date;
+  $data['Sum'] = intval($summ);
+  $data['ProjectId'] = $contractMDId;
+  $data['Type'] = 1;
+  $data['Status'] = $status;
+  $data['IsCovered '] = $isCovered;
+  $data['Items'] = $products;
+    // запрос на обновление
+  $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/bill/'.$mdId);
+  curl_setopt_array($curl, array(
+    CURLOPT_HTTPHEADER => array('Accept: application/json', 'md-api-key: '.MOEDELO_TOKEN, 'Content-Type: application/json'),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_CUSTOMREQUEST => 'PUT',
+    CURLOPT_POSTFIELDS => json_encode($data)
+  ));
+  if ($response=curl_exec($curl)) {
+    $answer = json_decode($response, true);
+    if ($answer['Id']) { curl_close($curl); return true; }
+  }
+  curl_close($curl);
+  return false;
+}
+
+
+
 
 
 
