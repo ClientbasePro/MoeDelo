@@ -194,7 +194,7 @@ function GetMoeDeloActData($search) {
 
   // функция создаёт акт, возвращает id созданного акта
   // формат массива позиций акта - https://restapi.moedelo.org/s/?url=/docs#!/%D0%9F%D1%80%D0%BE%D0%B4%D0%B0%D0%B6%D0%B8_-_%D0%90%D0%BA%D1%82%D1%8B/SalesAct_Put
-function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='') {
+function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='', $invoiceMDId='') {
   if (!$number || !$accountMDId || !$products || !in_array($original,array('','Да','Нет','Скан')) || !is_array($products)) return false;
   if (!$date) $date = date('Y-m-d');
   $date = date(DATE_ATOM, strtotime($date));
@@ -209,6 +209,7 @@ function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='
   $data['ProjectId'] = $contractMDId;
   $data['OnHands'] = $original;
   $data['Items'] = $products;
+  $data['BillId'] = $invoiceMDId;
     // запрос на создание
   $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act');
   curl_setopt_array($curl, array(
@@ -227,7 +228,7 @@ function CreateMoeDeloAct($number='', $date='', $accountMDId='', $contractMDId='
 
 
   // функция обновляет акт $mdId
-function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='') {
+function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $contractMDId='', $summ=0, $original='Нет', $products='', $invoiceMDId='') {
   if (!$mdId || !$number || !$accountMDId || !in_array($original,array('','Да','Нет','Скан')) || !is_array($products)) return false;
   if (!$date) $date = date('Y-m-d');
   $date = date(DATE_ATOM, strtotime($date));
@@ -239,6 +240,7 @@ function UpdateMoeDeloAct($mdId='', $number='', $date='', $accountMDId='', $cont
   $data['ProjectId'] = $contractMDId;
   $data['OnHands'] = $original;
   $data['Items'] = $products;
+  $data['BillId'] = $invoiceMDId;
     // запрос на обновление
   $curl = curl_init(MOEDELO_URL.'/accounting/api/v1/sales/act/'.$mdId);
   curl_setopt_array($curl, array(
